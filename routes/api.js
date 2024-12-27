@@ -1,47 +1,101 @@
-/*
-*
-*
-*       Complete the API routing below
-*       
-*       
-*/
-
 'use strict';
+
+const mongoose = require('mongoose');
+const Book = require('../models/Books'); // Assuming the Book model is in models/Book.js
 
 module.exports = function (app) {
 
   app.route('/api/books')
-    .get(function (req, res){
-      //response will be array of book objects
-      //json res format: [{"_id": bookid, "title": book_title, "commentcount": num_of_comments },...]
+    .get(async function (req, res) {
+      try {
+        const books = await Book.find({});
+        const formattedBooks = books.map(book => ({
+          _id: book._id,
+          title: book.title,
+          commentcount: book.comments.length
+        }));
+        res.json(formattedBooks);
+      } catch (error) {
+        res.status(500).send('Internal server error');
+      }
     })
     
-    .post(function (req, res){
-      let title = req.body.title;
-      //response will contain new book object including atleast _id and title
+    .post(async function (req, res) {
+      const { title } = req.body;
+      if (!title) {
+        return res.send('missing required field title');
+      }
+      try {
+        const newBook = new Book({ title });
+        await newBook.save();
+        res.json({ _id: newBook._id, title: newBook.title });
+      } catch (error) {
+        res.status(500).send('Internal server error');
+      }
     })
     
-    .delete(function(req, res){
-      //if successful response will be 'complete delete successful'
+    .delete(async function (req, res) {
+      try {
+        await Book.deleteMany({});
+        res.send('complete delete successful');
+      } catch (error) {
+        res.status(500).send('Internal server error');
+      }
     });
-
-
 
   app.route('/api/books/:id')
-    .get(function (req, res){
-      let bookid = req.params.id;
-      //json res format: {"_id": bookid, "title": book_title, "comments": [comment,comment,...]}
+    .get(async function (req, res) {
+      const { id: bookid } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(bookid)) {
+        return res.status(400).send('Invalid book ID');
+      }
+      try {
+        const book = await Book.findById(bookid);
+        if (!book) {
+          return res.send('no book exists');
+        }
+        res.json({ _id: book._id, title: book.title, comments: book.comments });
+      } catch (error) {
+        res.status(500).send('Internal server error');
+      }
     })
     
-    .post(function(req, res){
-      let bookid = req.params.id;
-      let comment = req.body.comment;
-      //json res format same as .get
+    .post(async function (req, res) {
+      const { id: bookid } = req.params;
+      const { comment } = req.body;
+      if (!comment) {
+        return res.send('missing required field comment');
+      }
+      if (!mongoose.Types.ObjectId.isValid(bookid)) {
+        return res.status(400).send('Invalid book ID');
+      }
+      try {
+        const book = await Book.findById(bookid);
+        if (!book) {
+          return res.send('no book exists');
+        }
+        book.comments.push(comment);
+        await book.save();
+        res.json({ _id: book._id, title: book.title, comments: book.comments });
+      } catch (error) {
+        res.status(500).send('Internal server error');
+      }
     })
     
-    .delete(function(req, res){
-      let bookid = req.params.id;
-      //if successful response will be 'delete successful'
+    .delete(async function (req, res) {
+      const { id: bookid } = req.params;
+      if (!mongoose.Types.ObjectId.isValid(bookid)) {
+        return res.status(400).send('Invalid book ID');
+      }
+      try {
+        const book = await Book.findByIdAndDelete(bookid);
+        if (!book) {
+          return res.send('no book exists');
+        }
+        res.send('delete successful');
+      } catch (error) {
+        res.status(500).send('Internal server error');
+      }
     });
-  
-};
+
+}
